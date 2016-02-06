@@ -1,0 +1,13 @@
+{
+	"description": "RUtracker.org",
+	"author": "Wain", 
+	"homepage": "http://github.com/Wain-PC",
+	"title": "RUtracker",
+	"synopsis": "RUtracker.org",
+	"version": "0.1.1", "file": "rutracker.js",
+	"showtimeVersion": "4.7.90",
+	"type": "ecmascript",
+	"icon": "logo.png",
+	"id": "rutracker",
+	"category": "video"
+}
