@@ -49,28 +49,6 @@
         page.loading = false;
     }
 
-    function win1251tounicode(str) {
-        var result = '',
-            uniCode = 0,
-            winCode = 0,
-            i;
-        if (str == 0) return 0;
-        for (i = 0; i < str.length; i++) {
-            winCode = str.charCodeAt(i);
-            if (winCode == 184) {
-                uniCode = 1105;
-            } else if (winCode == 168) {
-                uniCode = 1025;
-            } else if (winCode > 191 && winCode < 256) {
-                uniCode = winCode + 848;
-            } else {
-                uniCode = winCode;
-            }
-            result += String.fromCharCode(uniCode);
-        }
-        return result;
-    }
-
     var service = plugin.createService(config.pluginInfo.title, config.prefix + ":start", "video", true, config.logo);
     var settings = plugin.createSettings(config.pluginInfo.title, config.logo, config.pluginInfo.synopsis);
     settings.createInfo("info", config.logo, "Plugin developed by " + config.pluginInfo.author + ". \n");
@@ -89,7 +67,7 @@
         setPageHeader(page, config.pluginInfo.synopsis);
         page.loading = true;
         doc = showtime.httpReq(config.urls.base + 'index.php');
-        doc.toString();
+        doc.convertFromEncoding('windows-1251').toString();
         page.loading = false;
 
         //check for LOGIN state
@@ -119,13 +97,13 @@
         re2 = /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g;
         while (mainSubforum) {
             page.appendItem("", "separator", {
-                title: win1251tounicode(mainSubforum[1])
+                title: mainSubforum[1]
             });
             // 1-forumId, 2 - title
             forumItem = re2.exec(mainSubforum[2]);
             while (forumItem) {
-                forumTitle = win1251tounicode(forumItem[2]);
-                page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + escape(forumTitle), "directory", {
+                forumTitle = forumItem[2];
+                page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + encodeURIComponent(forumTitle), "directory", {
                     title: new showtime.RichText(forumTitle)
                 });
                 forumItem = re2.exec(mainSubforum[2]);
@@ -140,9 +118,9 @@
         var reSubforum, forumItem, reTopic,
             topicItem, topicTitle;
         page.loading = true;
-        setPageHeader(page, unescape(forumTitle));
+        setPageHeader(page, decodeURIComponent(forumTitle));
         var doc = showtime.httpReq(config.urls.base + 'viewforum.php?f=' + forumId);
-        doc.toString();
+        doc.convertFromEncoding('windows-1251').toString();
         page.loading = false;
 
         //searching for SUBFORUMS
@@ -156,8 +134,8 @@
         }
 
         while (forumItem) {
-            forumTitle = win1251tounicode(forumItem[2]);
-            page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + escape(forumTitle), "directory", {
+            forumTitle = forumItem[2];
+            page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + encodeURIComponent(forumTitle), "directory", {
                 title: new showtime.RichText(forumTitle)
             });
             forumItem = reSubforum.exec(doc);
@@ -175,11 +153,11 @@
             });
         }
         while (topicItem) {
-            topicTitle = win1251tounicode(topicItem[2]);
+            topicTitle = topicItem[2];
             //отсеем те темы, которые называются "1". Это не темы на самом деле, а ссылки для перехода на страницу темы,
             //типа "Стр. 1"
             if(topicTitle !== '1') {
-                page.appendItem(config.prefix + ":topic:" + topicItem[1] + ':' + escape(topicTitle), "directory", {
+                page.appendItem(config.prefix + ":topic:" + topicItem[1] + ':' + encodeURIComponent(topicTitle), "directory", {
                     title: new showtime.RichText(topicTitle)
                 });
             }
@@ -192,7 +170,7 @@
     plugin.addURI(config.prefix + ":topic:(.*):(.*)", function (page, topicId, topicTitle) {
         var http, x, doc, reDlLink, dlLink, str;
         page.loading = true;
-        setPageHeader(page, unescape(topicTitle));
+        setPageHeader(page, decodeURIComponent(topicTitle));
         //проверяем куки, если нет, то нужно перелогиниться или залогиниться, используя сохраненные данные
         if (!(service.userCookie.match(/bb_data/))) {
             page.redirect(config.prefix + ":logout:false:" + topicId);
@@ -245,7 +223,7 @@
                     postdata: {
                         'login_username': credentials.username,
                         'login_password': credentials.password,
-                        'login': escape('Вход')
+                        'login': encodeURIComponent('Вход')
                     },
                     noFollow: true,
                     headers: {
@@ -262,7 +240,7 @@
                     captchaImageURL = captchaRegExp[1];
                     hiddenCaptchaValue = captchaRegExp[2];
                     inputName = captchaRegExp[3];
-                    page.redirect(config.prefix + ":captcha:" + credentials.username + ":" + escape(credentials.password) + ":" + escape(captchaImageURL) + ":" + hiddenCaptchaValue + ":" + inputName);
+                    page.redirect(config.prefix + ":captcha:" + credentials.username + ":" + encodeURIComponent(credentials.password) + ":" + encodeURIComponent(captchaImageURL) + ":" + hiddenCaptchaValue + ":" + inputName);
                     break;
                 }
                 v = v.toString();
@@ -299,8 +277,8 @@
 
     plugin.addURI(config.prefix + ":captcha:(.*):(.*):(.*):(.*):(.*)", function (page, login, password, image, cap_sid, cap_code_name) {
         var captchaValue, requestSettings, v, loginFail;
-        password = unescape(password);
-        image = unescape(image);
+        password = decodeURIComponent(password);
+        image = decodeURIComponent(image);
         setPageHeader(page, "Ввод капчи для входа");
         page.appendItem(config.prefix + ':captchalogin', "video", {
             title: new showtime.RichText("Введите капчу для входа"),
@@ -317,7 +295,7 @@
                     'login_username': login,
                     'login_password': password,
                     'cap_sid': cap_sid,
-                    'login': escape('Вход')
+                    'login': encodeURIComponent('Вход')
                 },
                 noFollow: true,
                 headers: {
@@ -356,12 +334,10 @@
 
     plugin.addSearcher(plugin.getDescriptor().id, config.logo, function (page, query) {
         var tryToSearch = true,
-            url = config.urls.base + "tracker.php?nm=" + query + '&start=50',
+            url = config.urls.base + "tracker.php?nm=" + encodeURIComponent(query),
             nextURL,
         //1-размер, 2-сидеры, 3-личеры
             infoRe = /<a class="small tr-dl dl-stub" href=".*?">(.*) &#8595;<\/a>[\W\w.]*?<b class="seedmed">(\d{0,10})<\/b>[\W\w.]*?title="Личи"><b>(\d{0,10})<\/b>/gm,
-        //1-ссылка на следующую страницу поиска
-            nextPageRe = /\d<\/a>&nbsp;&nbsp;<a class="pg" href="(.*?)">След.<\/a>/g,
         //1-номер темы, 2-относительная ссылка на тему, 3-название
             nameRe = /<a data-topic_id="(\d{0,10})".*?href="(.*)">(.*)<\/a>/g;
 
@@ -371,31 +347,39 @@
 
         //this is NOT working yet as intended (seems like finding the next page is broken)
         function loader() {
-            var response, match;
+            var response, match, dom, textContent,
+            html = require('showtime/html');
             if (!tryToSearch) return false;
             page.loading = true;
             response = showtime.httpReq(url).toString();
-            url = null;
+            dom = html.parse(response);
             page.loading = false;
             match = makeDescription(response);
             //проходимся по найденным темам
             while (match && match.title !== "") {
-                page.appendItem(config.prefix + ":topic:" + match.topicId + ":" + escape(match.title), "video", {
+                page.appendItem(config.prefix + ":topic:" + match.topicId + ":" + encodeURIComponent(match.title), "video", {
                     title: new showtime.RichText(match.title),
                     description: match.description
                 });
                 page.entries++;
                 match = makeDescription(response);
             }
-            var nextPageRe = /\d<\/a>&nbsp;&nbsp;<a class="pg" href="(.*?)">След\.<\/a>/;
-            //var nextPageRe = /<span class="pg-jump-menu">(.*?)<\/p>/;
-            nextURL = nextPageRe.exec(response);
-            if (!nextURL) {
-                return tryToSearch = false;
+            //pg-jump-menu
+            try {
+                nextURL = dom.root.getElementByClassName('bottom_info')[0].getElementByClassName('pg');
+                nextURL = nextURL[nextURL.length -1];
+                textContent = nextURL.textContent;
+                nextURL = nextURL.attributes.getNamedItem('href').value;
+
+                if (!nextURL || textContent !== "След.") {
+                    return tryToSearch = false;
+                }
+                else {
+                    url = config.urls.base + nextURL;
+                }
             }
-            else {
-                url = config.urls.base +
-                    nextURL[1];
+            catch(err) {
+               return tryToSearch = false;
             }
             return true;
         }
