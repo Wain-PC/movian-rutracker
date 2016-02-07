@@ -126,6 +126,7 @@
             forumItem,
             topicItem,
             topicTitle,
+            tryToSearch = true,
             url = config.urls.base + 'viewforum.php?f=' + forumId,
             pageNum = 0;
 
@@ -136,6 +137,9 @@
         function subforumLoader() {
             var response, dom, nextURL, textContent,
                 html = require('showtime/html');
+            if(!tryToSearch) {
+                return tryToSearch = false;
+            }
             page.loading = true;
             response = showtime.httpReq(url).convertFromEncoding('windows-1251').toString();
             dom = html.parse(response);
@@ -189,7 +193,7 @@
                 nextURL = nextURL.attributes.getNamedItem('href').value;
 
                 if (!nextURL || textContent !== "След.") {
-                    return false;
+                    return tryToSearch = false;
                 }
                 else {
                     url = config.urls.base + nextURL;
@@ -197,52 +201,136 @@
                 }
             }
             catch (err) {
-                return false;
+                return tryToSearch = false;
             }
         }
     });
 
 
-    //subforums
+    //Topic
     plugin.addURI(config.prefix + ":topic:(.*):(.*)", function (page, topicId, topicTitle) {
-        var http, x, doc, reDlLink, dlLink, str;
-        page.loading = true;
+        var doc, reDlId, dlId,
+            html = require('showtime/html'),
+            postBody, postImage, pageNum = 0,
+            tryToSearch = true,
+            url = config.urls.base + 'viewtopic.php?t=' + topicId;
         setPageHeader(page, decodeURIComponent(topicTitle));
-        //проверяем куки, если нет, то нужно перелогиниться или залогиниться, используя сохраненные данные
-        if (!(service.userCookie.match(/bb_data/))) {
-            page.redirect(config.prefix + ":logout:false:" + topicId);
-            return false;
-        }
+        topicLoader();
+        page.paginator = topicLoader;
 
-        doc = showtime.httpReq(config.urls.base + 'viewtopic.php?t=' + topicId);
-        page.loading = false;
-
-
-        reDlLink = /dl\.rutracker\.org\/forum\/dl.php\?t=(\d{0,10})/g;
-        dlLink = reDlLink.exec(doc);
-        if (dlLink) dlLink = dlLink[1];
-        else {
-            page.error("В теме не найдена ссылка на .torrent");
-            return false;
-        }
-
-        http = require('showtime/http');
-        x = http.request(config.urls.download + dlLink, {
-            args: {
-                dummy: ""
-            },
-            headers: {
-                Cookie: service.userCookie + ' bb_dl=' + dlLink + ';'
+        function topicLoader() {
+            var dom, nextURL, textContent,
+                postBodies, i, length, commentText,
+                html = require('showtime/html');
+            if(!tryToSearch) {
+                return false;
             }
-        });
-        str = Duktape.enc('base64', x.bytes);
-        page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + str);
+            page.loading = true;
+            //проверяем куки, если нет, то нужно перелогиниться или залогиниться, используя сохраненные данные
+            if (!(service.userCookie.match(/bb_data/))) {
+                page.redirect(config.prefix + ":logout:false:" + topicId + ":" + topicTitle);
+                return false;
+            }
+
+            doc = showtime.httpReq(url);
+            dom = html.parse(doc);
+            page.loading = false;
+            pageNum++;
+
+            postBodies = dom.root.getElementByClassName('post_body');
+
+            //if we're on the first page, first post must be parsed separately
+            if(pageNum === 1) {
+                page.appendItem("", "separator", {
+                    title: "Torrent"
+                });
+                if(postBodies && postBodies.length) {
+                    postBody = postBodies[0];
+                }
+                if(postBody) {
+                    postImage = postBody.getElementByClassName('postImg postImgAligned img-right');
+                    if(postImage) {
+                        postImage = postImage[0] && postImage[0].attributes.getNamedItem('title').value;
+                    }
+                    postBody = postBody.textContent || "";
+                }
+
+                reDlId = /dl\.rutracker\.org\/forum\/dl.php\?t=(\d{0,10})/g;
+                dlId = reDlId.exec(doc);
+                if (dlId) {
+                    dlId = dlId[1];
+                    page.appendItem(config.prefix + ":torrent:" + dlId, "video", {
+                        title: dlId + '.torrent',
+                        icon: postImage,
+                        description: new showtime.RichText(postBody)
+                    });
+                }
+                else {
+                    page.appendPassiveItem("video", null, {
+                        title: 'Ссылка на .torrent не найдена',
+                        icon: postImage,
+                        description: new showtime.RichText(postBody)
+                    });
+                }
+                i=1;
+                page.appendItem("", "separator", {
+                    title: "Комментарии"
+                });
+            }
+            else {
+                i=0;
+            }
+            length = postBodies.length;
+            //TODO: stopped here
+            for (i;i<length;i++) {
+                if(postBodies[i].textContent) {
+                    commentText = postBodies[i].textContent + "";
+                    page.appendPassiveItem("video", null, {
+                        title: commentText.substr(1),
+                        description: new showtime.RichText(postBodies[i].textContent)
+                    });
+                }
+            }
+
+            //try to get the link to the next page
+            try {
+                nextURL = dom.root.getElementByClassName('nav pad_6 row1')[0].getElementByClassName('pg');
+                nextURL = nextURL[nextURL.length - 1];
+                textContent = nextURL.textContent;
+                nextURL = nextURL.attributes.getNamedItem('href').value;
+
+                if (!nextURL || textContent !== "След.") {
+                    return tryToSearch = false;
+                }
+                else {
+                    url = config.urls.base + nextURL;
+                    return true;
+                }
+            }
+            catch (err) {
+                return tryToSearch = false;
+            }
+        }
+
     });
 
     //subforums
     plugin.addURI(config.prefix + ":login:(.*)", function (page, showAuth) {
         page.redirect(config.prefix + ":login:" + showAuth + ':null');
 
+    });
+
+    plugin.addURI(config.prefix + ":torrent:(.*)", function (page, dlId) {
+        var http = require('showtime/http'),
+            x = http.request(config.urls.download + dlId, {
+            args: {
+                dummy: ""
+            },
+            headers: {
+                Cookie: service.userCookie + ' bb_dl=' + dlId + ';'
+            }
+        });
+        page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + Duktape.enc('base64', x.bytes));
     });
 
     plugin.addURI(config.prefix + ":login:(.*):(.*)", function (page, showAuth, redirectTopicId) {
@@ -296,7 +384,7 @@
     });
 
 
-    plugin.addURI(config.prefix + ":logout:(.*):(.*)", function (page, showAuth, redirectTopicId) {
+    plugin.addURI(config.prefix + ":logout:(.*):(.*):(.*)", function (page, showAuth, redirectTopicId, redirectTopicTitle) {
         showtime.httpReq(config.urls.login, {
             postdata: {
                 'logout': 1
@@ -308,7 +396,7 @@
             }
         });
         page.loading = false;
-        page.redirect(config.prefix + ":login:" + showAuth + ":" + redirectTopicId);
+        page.redirect(config.prefix + ":login:" + showAuth + ":" + redirectTopicId + ":" + redirectTopicTitle);
     });
 
 
@@ -396,7 +484,7 @@
 
     plugin.addSearcher(plugin.getDescriptor().id, config.logo, function (page, query) {
         var url = config.urls.base + "tracker.php?nm=" + encodeURIComponent(query),
-            nextURL,
+            nextURL, tryToSearch = true,
         //1-размер, 2-сидеры, 3-личеры
             infoRe = /<a class="small tr-dl dl-stub" href=".*?">(.*) &#8595;<\/a>[\W\w.]*?<b class="seedmed">(\d{0,10})<\/b>[\W\w.]*?title="Личи"><b>(\d{0,10})<\/b>/gm,
         //1-номер темы, 2-относительная ссылка на тему, 3-название
@@ -410,6 +498,9 @@
         function loader() {
             var response, match, dom, textContent,
                 html = require('showtime/html');
+            if(!tryToSearch) {
+                return false;
+            }
             page.loading = true;
             response = showtime.httpReq(url).toString();
             dom = html.parse(response);
@@ -418,7 +509,7 @@
             if(response.match(/<div class="logintext">/)) {
                 if(!performLogin()) {
                     //do not perform the search if the background login has failed
-                    return false;
+                    return tryToSearch = false;
                 }
             }
 
@@ -430,7 +521,6 @@
                     description: match.description
                 });
                 page.entries++;
-                match = makeDescription(response);
             }
             try {
                 nextURL = dom.root.getElementByClassName('bottom_info')[0].getElementByClassName('pg');
@@ -439,7 +529,7 @@
                 nextURL = nextURL.attributes.getNamedItem('href').value;
 
                 if (!nextURL || textContent !== "След.") {
-                    return false;
+                    return tryToSearch = false;
                 }
                 else {
                     url = config.urls.base + nextURL;
@@ -447,9 +537,8 @@
                 }
             }
             catch (err) {
-                return false;
+                return tryToSearch = false;
             }
-            return true;
         }
 
 
