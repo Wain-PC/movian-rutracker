@@ -22,17 +22,30 @@
         pluginInfo: plugin.getDescriptor(),
         prefix: plugin.getDescriptor().id,
         logo: plugin.path + "logo.png",
-        urls: {
-            base: 'http://rutracker.org/forum/',
-            login: 'http://login.rutracker.org/forum/login.php',
-            download: 'http://dl.rutracker.org/forum/dl.php?t='
-        },
         colors: {
             blue: '6699CC',
             orange: 'FFA500',
             red: 'EE0000',
             green: '008B45'
         }
+    };
+
+    var service = plugin.createService(config.pluginInfo.title, config.prefix + ":start", "video", true, config.logo);
+    var settings = plugin.createSettings(config.pluginInfo.title, config.logo, config.pluginInfo.synopsis);
+    settings.createInfo("info", config.logo, "Plugin developed by " + config.pluginInfo.author + ". \n");
+    settings.createDivider('Settings');
+    settings.createString("domain", "Домен", "rutracker.org", function (v) {
+        service.domain = v;
+    });
+
+    settings.createString("userCookie", "Cookie пользователя", "DONT_TOUCH_THIS", function (v) {
+        service.userCookie = v;
+    });
+
+    config.urls = {
+        base: 'http://' + service.domain + '/forum/',
+        login: 'http://login.' + service.domain + '/forum/login.php',
+        download: 'http://dl.' + service.domain + '/forum/dl.php?t='
     };
 
     function coloredStr(str, color) {
@@ -49,16 +62,9 @@
         page.loading = false;
     }
 
-    var service = plugin.createService(config.pluginInfo.title, config.prefix + ":start", "video", true, config.logo);
-    var settings = plugin.createSettings(config.pluginInfo.title, config.logo, config.pluginInfo.synopsis);
-    settings.createInfo("info", config.logo, "Plugin developed by " + config.pluginInfo.author + ". \n");
-    settings.createDivider('Settings');
-    settings.createString("userCookie", "Cookie пользователя", "DONT_TOUCH_THIS", function (v) {
-        service.userCookie = v;
-    });
 
-
-    //first page
+    //Start page
+    //There's a list of all forums and subforums being shown
     plugin.addURI(config.prefix + ":start", function (page) {
         var doc,
             reLogin,
@@ -113,55 +119,86 @@
         }
     });
 
-    //subforums
+    //Subforums page. This may contain a list of nested subforums and a list of topics
     plugin.addURI(config.prefix + ":forum:(.*):(.*):(.*)", function (page, forumId, forumPage, forumTitle) {
-        var reSubforum, forumItem, reTopic,
-            topicItem, topicTitle;
-        page.loading = true;
+        var reSubforum = /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g,
+            reTopic = /href="viewtopic\.php\?t=([\d]{0,200}?)" class="[\s\S]*?">([\s\S]*?)<\/a>/g,
+            forumItem,
+            topicItem,
+            topicTitle,
+            url = config.urls.base + 'viewforum.php?f=' + forumId,
+            pageNum = 0;
+
+        subforumLoader();
         setPageHeader(page, decodeURIComponent(forumTitle));
-        var doc = showtime.httpReq(config.urls.base + 'viewforum.php?f=' + forumId);
-        doc.convertFromEncoding('windows-1251').toString();
-        page.loading = false;
+        page.paginator = subforumLoader;
 
-        //searching for SUBFORUMS
+        function subforumLoader() {
+            var response, dom, nextURL, textContent,
+                html = require('showtime/html');
+            page.loading = true;
+            response = showtime.httpReq(url).convertFromEncoding('windows-1251').toString();
+            dom = html.parse(response);
+            page.loading = false;
+            pageNum++;
 
-        reSubforum = /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g;
-        forumItem = reSubforum.exec(doc);
-        if (forumItem) {
-            page.appendItem("", "separator", {
-                title: "Форумы"
-            });
-        }
-
-        while (forumItem) {
-            forumTitle = forumItem[2];
-            page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + encodeURIComponent(forumTitle), "directory", {
-                title: new showtime.RichText(forumTitle)
-            });
-            forumItem = reSubforum.exec(doc);
-        }
-
-        //SUBFORUMS ended, add separator
-
-        //searching for TOPICS
-        //1-topicId, 2-topicTitle
-        reTopic = /href="viewtopic\.php\?t=([\d]{0,200}?)" class="[\s\S]*?">([\s\S]*?)<\/a>/g;
-        topicItem = reTopic.exec(doc);
-        if (topicItem) {
-            page.appendItem("", "separator", {
-                title: "Темы"
-            });
-        }
-        while (topicItem) {
-            topicTitle = topicItem[2];
-            //отсеем те темы, которые называются "1". Это не темы на самом деле, а ссылки для перехода на страницу темы,
-            //типа "Стр. 1"
-            if(topicTitle !== '1') {
-                page.appendItem(config.prefix + ":topic:" + topicItem[1] + ':' + encodeURIComponent(topicTitle), "directory", {
-                    title: new showtime.RichText(topicTitle)
+            //searching for SUBFORUMS
+            forumItem = reSubforum.exec(response);
+            if (forumItem && pageNum === 1) {
+                page.appendItem("", "separator", {
+                    title: "Форумы"
                 });
             }
-            topicItem = reTopic.exec(doc);
+
+            while (forumItem) {
+                forumTitle = forumItem[2];
+                page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + encodeURIComponent(forumTitle), "directory", {
+                    title: new showtime.RichText(forumTitle)
+                });
+                forumItem = reSubforum.exec(response);
+            }
+
+            //SUBFORUMS ended, add separator
+
+            //searching for TOPICS.
+            //1-topicId, 2-topicTitle
+            topicItem = reTopic.exec(response);
+            if (topicItem && pageNum === 1) {
+                page.appendItem("", "separator", {
+                    title: "Темы"
+                });
+            }
+            while (topicItem) {
+                topicTitle = topicItem[2];
+                //отсеем те темы, которые называются "1". Это не темы на самом деле, а ссылки для перехода на страницу темы,
+                //типа "Стр. 1"
+                if (topicTitle !== '1') {
+                    page.appendItem(config.prefix + ":topic:" + topicItem[1] + ':' + encodeURIComponent(topicTitle), "directory", {
+                        title: new showtime.RichText(topicTitle)
+                    });
+                }
+                topicItem = reTopic.exec(response);
+            }
+
+            //try to get the link to the next page
+            //pg-jump-menu
+            try {
+                nextURL = dom.root.getElementByClassName('bottom_info')[0].getElementByClassName('pg');
+                nextURL = nextURL[nextURL.length - 1];
+                textContent = nextURL.textContent;
+                nextURL = nextURL.attributes.getNamedItem('href').value;
+
+                if (!nextURL || textContent !== "След.") {
+                    return false;
+                }
+                else {
+                    url = config.urls.base + nextURL;
+                    return true;
+                }
+            }
+            catch (err) {
+                return false;
+            }
         }
     });
 
@@ -333,8 +370,7 @@
 
 
     plugin.addSearcher(plugin.getDescriptor().id, config.logo, function (page, query) {
-        var tryToSearch = true,
-            url = config.urls.base + "tracker.php?nm=" + encodeURIComponent(query),
+        var url = config.urls.base + "tracker.php?nm=" + encodeURIComponent(query),
             nextURL,
         //1-размер, 2-сидеры, 3-личеры
             infoRe = /<a class="small tr-dl dl-stub" href=".*?">(.*) &#8595;<\/a>[\W\w.]*?<b class="seedmed">(\d{0,10})<\/b>[\W\w.]*?title="Личи"><b>(\d{0,10})<\/b>/gm,
@@ -348,8 +384,7 @@
         //this is NOT working yet as intended (seems like finding the next page is broken)
         function loader() {
             var response, match, dom, textContent,
-            html = require('showtime/html');
-            if (!tryToSearch) return false;
+                html = require('showtime/html');
             page.loading = true;
             response = showtime.httpReq(url).toString();
             dom = html.parse(response);
@@ -364,22 +399,22 @@
                 page.entries++;
                 match = makeDescription(response);
             }
-            //pg-jump-menu
             try {
                 nextURL = dom.root.getElementByClassName('bottom_info')[0].getElementByClassName('pg');
-                nextURL = nextURL[nextURL.length -1];
+                nextURL = nextURL[nextURL.length - 1];
                 textContent = nextURL.textContent;
                 nextURL = nextURL.attributes.getNamedItem('href').value;
 
                 if (!nextURL || textContent !== "След.") {
-                    return tryToSearch = false;
+                    return false;
                 }
                 else {
                     url = config.urls.base + nextURL;
+                    return true;
                 }
             }
-            catch(err) {
-               return tryToSearch = false;
+            catch (err) {
+                return false;
             }
             return true;
         }
