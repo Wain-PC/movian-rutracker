@@ -368,6 +368,31 @@
         }
     }
 
+    function performLogin() {
+        var credentials = plugin.getAuthCredentials(plugin.getDescriptor().synopsis, "Login required", false),
+            response, result;
+        if (credentials.rejected) return false; //rejected by user
+        if (credentials) {
+            response = showtime.httpReq(config.urls.login, {
+                postdata: {
+                    'login_username': credentials.username,
+                    'login_password': credentials.password,
+                    'login': encodeURIComponent('Вход')
+                },
+                noFollow: true,
+                headers: {
+                    'Referer': config.urls.base,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Cookie': ''
+                }
+            });
+            saveUserCookie(response.headers);
+            response = response.toString();
+            result = response.match(/<div class="logintext">/);
+            return !result;
+        }
+    }
+
 
     plugin.addSearcher(plugin.getDescriptor().id, config.logo, function (page, query) {
         var url = config.urls.base + "tracker.php?nm=" + encodeURIComponent(query),
@@ -389,6 +414,14 @@
             response = showtime.httpReq(url).toString();
             dom = html.parse(response);
             page.loading = false;
+            //perform background login if login form has been found on the page
+            if(response.match(/<div class="logintext">/)) {
+                if(!performLogin()) {
+                    //do not perform the search if the background login has failed
+                    return false;
+                }
+            }
+
             match = makeDescription(response);
             //проходимся по найденным темам
             while (match && match.title !== "") {
