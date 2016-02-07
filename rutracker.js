@@ -521,6 +521,7 @@
                     description: match.description
                 });
                 page.entries++;
+                match = makeDescription(response);
             }
             try {
                 nextURL = dom.root.getElementByClassName('bottom_info')[0].getElementByClassName('pg');
