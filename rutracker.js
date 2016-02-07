@@ -86,10 +86,10 @@
         else {
             saveUserCookie(doc.headers);
             if (!(service.userCookie.match(/bb_data/))) {
-                page.redirect(config.prefix + ":logout:false:null");
+                page.redirect(config.prefix + ":logout:false:null:null");
             }
 
-            page.appendItem(config.prefix + ":logout:true:null", "directory", {
+            page.appendItem(config.prefix + ":logout:true:null:null", "directory", {
                 title: new showtime.RichText("Выйти из аккаунта " + loginState[1])
 
             });
@@ -254,6 +254,10 @@
                     }
                     postBody = postBody.textContent || "";
                 }
+
+                var test = "<div id='test'>Foo<span>Bar</span></div>",
+                    parsed = html.parse(test);
+                showtime.print(parsed.root.getElementById('test').textContent);
 
                 reDlId = /dl\.rutracker\.org\/forum\/dl.php\?t=(\d{0,10})/g;
                 dlId = reDlId.exec(doc);
