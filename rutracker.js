@@ -255,10 +255,6 @@
                     postBody = postBody.textContent || "";
                 }
 
-                var test = "<div id='test'>Foo<span>Bar</span></div>",
-                    parsed = html.parse(test);
-                showtime.print(parsed.root.getElementById('test').textContent);
-
                 reDlId = /dl\.rutracker\.org\/forum\/dl.php\?t=(\d{0,10})/g;
                 dlId = reDlId.exec(doc);
                 if (dlId) {
@@ -381,7 +377,7 @@
 
         //AUTH END
         if (redirectTopicId !== 'null') {
-            page.redirect(config.prefix + ":topic:" + redirectTopicId + ":Производится вход");
+            page.redirect(config.prefix + ":topic:" + redirectTopicId + encodeURIComponent(":Производится вход"));
         }
         else page.redirect(config.prefix + ':start');
 
