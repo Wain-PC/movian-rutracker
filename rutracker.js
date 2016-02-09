@@ -314,12 +314,6 @@
 
     });
 
-    //subforums
-    plugin.addURI(config.prefix + ":login:(.*)", function (page, showAuth) {
-        page.redirect(config.prefix + ":login:" + showAuth + ':null');
-
-    });
-
     plugin.addURI(config.prefix + ":torrent:(.*)", function (page, dlId) {
         var http = require('showtime/http'),
             x = http.request(config.urls.download + dlId, {
@@ -333,7 +327,7 @@
         page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + Duktape.enc('base64', x.bytes));
     });
 
-    plugin.addURI(config.prefix + ":login:(.*):(.*)", function (page, showAuth, redirectTopicId) {
+    plugin.addURI(config.prefix + ":login:(.*):(.*):(.*)", function (page, showAuth, redirectTopicId, redirectTopicTitle) {
         //AUTH!
         var showAuthCredentials = false,
             credentials, v, captchaRegExp,
@@ -377,7 +371,7 @@
 
         //AUTH END
         if (redirectTopicId !== 'null') {
-            page.redirect(config.prefix + ":topic:" + redirectTopicId + encodeURIComponent(":Производится вход"));
+            page.redirect(config.prefix + ":topic:" + redirectTopicId + ":Производится вход");
         }
         else page.redirect(config.prefix + ':start');
 
