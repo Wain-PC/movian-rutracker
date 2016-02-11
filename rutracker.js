@@ -137,7 +137,7 @@
         function subforumLoader() {
             var response, dom, nextURL, textContent,
                 html = require('showtime/html');
-            if(!tryToSearch) {
+            if (!tryToSearch) {
                 return tryToSearch = false;
             }
             page.loading = true;
@@ -209,7 +209,7 @@
 
     //Topic
     plugin.addURI(config.prefix + ":topic:(.*):(.*)", function (page, topicId, topicTitle) {
-        var doc, reDlId, dlId,
+        var doc, reDlId, dlHref,
             html = require('showtime/html'),
             postBody, postImage, pageNum = 0,
             tryToSearch = true,
@@ -222,7 +222,7 @@
             var dom, nextURL, textContent,
                 postBodies, i, length, commentText,
                 html = require('showtime/html');
-            if(!tryToSearch) {
+            if (!tryToSearch) {
                 return false;
             }
             page.loading = true;
@@ -240,27 +240,26 @@
             postBodies = dom.root.getElementByClassName('post_body');
 
             //if we're on the first page, first post must be parsed separately
-            if(pageNum === 1) {
+            if (pageNum === 1) {
                 page.appendItem("", "separator", {
                     title: "Torrent"
                 });
-                if(postBodies && postBodies.length) {
+                if (postBodies && postBodies.length) {
                     postBody = postBodies[0];
                 }
-                if(postBody) {
+                if (postBody) {
                     postImage = postBody.getElementByClassName('postImg postImgAligned img-right');
-                    if(postImage) {
+                    if (postImage) {
                         postImage = postImage[0] && postImage[0].attributes.getNamedItem('title').value;
                     }
                     postBody = postBody.textContent || "";
                 }
 
-                reDlId = /dl\.rutracker\.org\/forum\/dl.php\?t=(\d{0,10})/g;
-                dlId = reDlId.exec(doc);
-                if (dlId) {
-                    dlId = dlId[1];
-                    page.appendItem(config.prefix + ":torrent:" + dlId, "video", {
-                        title: dlId + '.torrent',
+                //sample href: <a class="dl-stub dl-link" href="http://dl.rutracker.unblock.ga/forum/dl.php?t=3929562">
+                dlHref = dom.root.getElementByClassName('dl-link')[0].attributes.getNamedItem('href').value;
+                if (dlHref) {
+                    page.appendItem(config.prefix + ":torrent:" + encodeURIComponent(dlHref), "video", {
+                        title: decodeURIComponent(topicTitle) + '.torrent',
                         icon: postImage,
                         description: new showtime.RichText(postBody)
                     });
@@ -272,18 +271,18 @@
                         description: new showtime.RichText(postBody)
                     });
                 }
-                i=1;
+                i = 1;
                 page.appendItem("", "separator", {
                     title: "Комментарии"
                 });
             }
             else {
-                i=0;
+                i = 0;
             }
             length = postBodies.length;
             //TODO: stopped here
-            for (i;i<length;i++) {
-                if(postBodies[i].textContent) {
+            for (i; i < length; i++) {
+                if (postBodies[i].textContent) {
                     commentText = postBodies[i].textContent + "";
                     page.appendPassiveItem("video", null, {
                         title: commentText.substr(1),
@@ -314,14 +313,16 @@
 
     });
 
-    plugin.addURI(config.prefix + ":torrent:(.*)", function (page, dlId) {
-        var http = require('showtime/http'),
-            x = http.request(config.urls.download + dlId, {
+    plugin.addURI(config.prefix + ":torrent:(.*)", function (page, dlHref) {
+        var http = require('showtime/http'), x;
+        dlHref = decodeURIComponent(dlHref);
+
+        x = http.request(dlHref, {
             args: {
                 dummy: ""
             },
             headers: {
-                Cookie: service.userCookie + ' bb_dl=' + dlId + ';'
+                Cookie: service.userCookie + ' bb_dl=' + dlHref + ';'
             }
         });
         page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + Duktape.enc('base64', x.bytes));
@@ -492,7 +493,7 @@
         function loader() {
             var response, match, dom, textContent,
                 html = require('showtime/html');
-            if(!tryToSearch) {
+            if (!tryToSearch) {
                 return false;
             }
             page.loading = true;
@@ -500,8 +501,8 @@
             dom = html.parse(response);
             page.loading = false;
             //perform background login if login form has been found on the page
-            if(response.match(/<div class="logintext">/)) {
-                if(!performLogin()) {
+            if (response.match(/<div class="logintext">/)) {
+                if (!performLogin()) {
                     //do not perform the search if the background login has failed
                     return tryToSearch = false;
                 }
