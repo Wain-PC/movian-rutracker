@@ -44,8 +44,7 @@
 
     config.urls = {
         base: 'http://' + service.domain + '/forum/',
-        login: 'http://login.' + service.domain + '/forum/login.php',
-        download: 'http://dl.' + service.domain + '/forum/dl.php?t='
+        login: 'http://login.' + service.domain + '/forum/login.php'
     };
 
     function coloredStr(str, color) {
@@ -80,7 +79,7 @@
         reLogin = /Вы зашли как:[\s\S]*?<b class="med">([\s\S]*?)<\/b>/g;
         loginState = reLogin.exec(doc);
         if (!loginState) {
-            page.redirect(config.prefix + ':login:false');
+            page.redirect(config.prefix + ':login:false:null:null');
             return;
         }
         else {
@@ -328,6 +327,7 @@
         page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + Duktape.enc('base64', x.bytes));
     });
 
+    //Login form
     plugin.addURI(config.prefix + ":login:(.*):(.*):(.*)", function (page, showAuth, redirectTopicId, redirectTopicTitle) {
         //AUTH!
         var showAuthCredentials = false,
@@ -433,11 +433,11 @@
             v = v.toString();
             loginFail = v.match(/<h4 class="warnColor1 tCenter mrg_16">/);
             if (!loginFail) page.redirect(config.prefix + ":start");
-            else page.redirect(config.prefix + ":login:true");
+            else page.redirect(config.prefix + ":login:true:null:null");
 
         }
         else {
-            page.redirect(config.prefix + ":login:true");
+            page.redirect(config.prefix + ":login:true:null:null");
         }
 
     });
