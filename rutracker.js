@@ -208,14 +208,75 @@
 
     //Topic
     plugin.addURI(config.prefix + ":topic:(.*):(.*)", function (page, topicId, topicTitle) {
-        var doc, reDlId, dlHref,
+        var doc,
             html = require('showtime/html'),
-            postBody, postImage, pageNum = 0,
+            pageNum = 0,
             tryToSearch = true,
             url = config.urls.base + 'viewtopic.php?t=' + topicId;
         setPageHeader(page, decodeURIComponent(topicTitle));
         topicLoader();
         page.paginator = topicLoader;
+
+        function getLink(type, postBody) {
+            var link = '', className,
+                postImage = null,
+                postBodyContents = '',
+                redirectState;
+
+            if (type === 'torrent') {
+                className = 'dl-link';
+            }
+            else {
+                type = 'magnet';
+                className = 'magnet-link-16';
+            }
+
+            //trying to get the image
+            try {
+                if (postBody) {
+                    postImage = postBody.getElementByClassName('postImg postImgAligned img-right')[0]
+                        .attributes.getNamedItem('title').value;
+                    postBodyContents = postBody.textContent || "";
+                }
+                else {
+                    postBodyContents = '';
+                }
+            }
+            catch(err) {
+                postBodyContents = '';
+            }
+
+            //trying to get link
+            try {
+                link = postBody.getElementByClassName(className)[0].attributes.getNamedItem('href').value;
+            }
+            catch (err) {
+                link = null;
+            }
+
+            if (link) {
+                if (type === 'torrent') {
+                    redirectState = config.prefix + ':' + type + ':' + encodeURIComponent(link);
+                }
+                else {
+                    type = 'magnet';
+                    redirectState = 'torrent:video:' + decodeURIComponent(link);
+                }
+
+                page.appendItem(redirectState, "video", {
+                    title: type+' : '+decodeURIComponent(topicTitle),
+                    icon: postImage,
+                    description: new showtime.RichText(postBodyContents)
+                });
+            }
+            else {
+                page.appendPassiveItem("video", null, {
+                    title: 'Ссылка на .' + type + ' не найдена',
+                    icon: postImage,
+                    description: new showtime.RichText(postBodyContents)
+                });
+            }
+        }
 
         function topicLoader() {
             var dom, nextURL, textContent,
@@ -241,45 +302,12 @@
             //if we're on the first page, first post must be parsed separately
             if (pageNum === 1) {
                 page.appendItem("", "separator", {
-                    title: "Torrent"
+                    title: "Ссылки"
                 });
 
-                if (postBodies && postBodies.length) {
-                    postBody = postBodies[0];
-                }
-                if (postBody) {
-                    postImage = postBody.getElementByClassName('postImg postImgAligned img-right');
-                    if (postImage) {
-                        postImage = postImage[0] && postImage[0].attributes.getNamedItem('title').value;
-                    }
-                    //turned off temporarily, as it causes "Attempt to push beyound the currently allocated stack"
-                    //Most probably, it's caused by the recursion inside Movian's textContent method.
+                getLink('torrent', postBodies[0]);
+                getLink('magnet', postBodies[0]);
 
-                    //postBody = postBody.textContent || "";
-                }
-
-
-                //sample href: <a class="dl-stub dl-link" href="http://dl.rutracker.unblock.ga/forum/dl.php?t=3929562">
-                try {
-                    dlHref = dom.root.getElementByClassName('dl-link')[0].attributes.getNamedItem('href').value;
-                }
-                catch (err) {
-                    dlHref = null;
-                }
-                if (dlHref) {
-                    page.appendItem(config.prefix + ":torrent:" + encodeURIComponent(dlHref), "video", {
-                        title: decodeURIComponent(topicTitle) + '.torrent',
-                        icon: postImage
-                        //description: new showtime.RichText(postBody)
-                    });
-                }
-                else {
-                    page.appendPassiveItem("video", null, {
-                        title: 'Ссылка на .torrent не найдена',
-                        icon: postImage
-                        //description: new showtime.RichText(postBody)
-                    });
-                }
                 i = 1;
                 page.appendItem("", "separator", {
                     title: "Комментарии"
@@ -289,7 +317,6 @@
                 i = 0;
             }
             length = postBodies.length;
-            //TODO: stopped here
             for (i; i < length; i++) {
                 if (postBodies[i].textContent) {
                     commentText = postBodies[i].textContent;
@@ -336,8 +363,6 @@
         });
         page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + Duktape.enc('base64', x.bytes));
     });
-
-    //TODO: create a redirectTo method(state, stateParams) (and possibly a redirectFrom(options))
 
     var redirectTo = function (page, state, stateParams) {
             return page.redirect(config.prefix + ':' + state + ':' + encodeURIComponent(showtime.JSONEncode(stateParams)));
@@ -424,7 +449,7 @@
     });
 
     plugin.addURI(config.prefix + ":captchalogin:(.*):(.*):(.*)", function (page, image, capSid, capCodeName) {
-        var captchaValue, requestSettings;
+        var captchaValue;
 
         setPageHeader(page, "Ввод капчи для входа");
         page.appendItem('rutracker:start', "video", {

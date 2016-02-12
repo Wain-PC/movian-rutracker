@@ -4,7 +4,7 @@
   "homepage": "http://github.com/Wain-PC",
   "title": "Rutracker",
   "synopsis": "Rutracker",
-  "version": "0.5",
+  "version": "0.6",
   "file": "rutracker.js",
   "showtimeVersion": "4.9.389",
   "type": "ecmascript",
