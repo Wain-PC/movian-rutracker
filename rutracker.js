@@ -27,6 +27,16 @@
             orange: 'FFA500',
             red: 'EE0000',
             green: '008B45'
+        },
+        headers: {
+            Connection: "keep-alive",
+            Pragma: "no-cache",
+            "Cache-Control": "no-cache",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Upgrade-Insecure-Requests": 1,
+            "User-Agent": "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.109 Safari/537.36",
+            "Accept-Encoding": "gzip, deflate, sdch",
+            "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,und;q=0.2"
         }
     };
 
@@ -71,7 +81,11 @@
             re, mainSubforum, re2, forumItem, forumTitle;
         setPageHeader(page, config.pluginInfo.synopsis);
         page.loading = true;
-        doc = showtime.httpReq(config.urls.base + 'index.php');
+        doc = showtime.httpReq(config.urls.base + 'index.php', {
+            headers: config.headers,
+            debug: true
+
+        });
         doc.convertFromEncoding('windows-1251').toString();
         page.loading = false;
 
@@ -140,7 +154,11 @@
                 return tryToSearch = false;
             }
             page.loading = true;
-            response = showtime.httpReq(url).convertFromEncoding('windows-1251').toString();
+            response = showtime.httpReq(url, {
+                headers: config.headers,
+                debug: true
+            }
+            ).convertFromEncoding('windows-1251').toString();
             dom = html.parse(response);
             page.loading = false;
             pageNum++;
@@ -242,7 +260,7 @@
                     postBodyContents = '';
                 }
             }
-            catch(err) {
+            catch (err) {
                 postBodyContents = '';
             }
 
@@ -264,7 +282,7 @@
                 }
 
                 page.appendItem(redirectState, "video", {
-                    title: type+' : '+decodeURIComponent(topicTitle),
+                    title: type + ' : ' + decodeURIComponent(topicTitle),
                     icon: postImage,
                     description: new showtime.RichText(postBodyContents)
                 });
@@ -292,7 +310,9 @@
                 return false;
             }
 
-            doc = showtime.httpReq(url);
+            doc = showtime.httpReq(url, {
+                headers: config.headers
+            });
             dom = html.parse(doc);
             page.loading = false;
             pageNum++;
@@ -435,6 +455,7 @@
                 'logout': 1
             },
             noFollow: true,
+            debug: true,
             headers: {
                 'Referer': config.urls.base + 'index.php',
                 'Content-Type': 'application/x-www-form-urlencoded'
@@ -538,7 +559,9 @@
                 return false;
             }
             page.loading = true;
-            response = showtime.httpReq(url).toString();
+            response = showtime.httpReq(url, {
+                headers: config.headers
+            }).toString();
             dom = html.parse(response);
             page.loading = false;
             //perform background login if login form has been found on the page
