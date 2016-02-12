@@ -79,7 +79,7 @@
         reLogin = /Вы зашли как:[\s\S]*?<b class="med">([\s\S]*?)<\/b>/g;
         loginState = reLogin.exec(doc);
         if (!loginState) {
-            page.redirect(config.prefix + ':login:false:null:null');
+            redirectTo(page, 'login', {showAuth: false});
             return;
         }
         else {
@@ -243,6 +243,7 @@
                 page.appendItem("", "separator", {
                     title: "Torrent"
                 });
+
                 if (postBodies && postBodies.length) {
                     postBody = postBodies[0];
                 }
@@ -251,23 +252,32 @@
                     if (postImage) {
                         postImage = postImage[0] && postImage[0].attributes.getNamedItem('title').value;
                     }
-                    postBody = postBody.textContent || "";
+                    //turned off temporarily, as it causes "Attempt to push beyound the currently allocated stack"
+                    //Most probably, it's caused by the recursion inside Movian's textContent method.
+
+                    //postBody = postBody.textContent || "";
                 }
 
+
                 //sample href: <a class="dl-stub dl-link" href="http://dl.rutracker.unblock.ga/forum/dl.php?t=3929562">
-                dlHref = dom.root.getElementByClassName('dl-link')[0].attributes.getNamedItem('href').value;
+                try {
+                    dlHref = dom.root.getElementByClassName('dl-link')[0].attributes.getNamedItem('href').value;
+                }
+                catch (err) {
+                    dlHref = null;
+                }
                 if (dlHref) {
                     page.appendItem(config.prefix + ":torrent:" + encodeURIComponent(dlHref), "video", {
                         title: decodeURIComponent(topicTitle) + '.torrent',
-                        icon: postImage,
-                        description: new showtime.RichText(postBody)
+                        icon: postImage
+                        //description: new showtime.RichText(postBody)
                     });
                 }
                 else {
                     page.appendPassiveItem("video", null, {
                         title: 'Ссылка на .torrent не найдена',
-                        icon: postImage,
-                        description: new showtime.RichText(postBody)
+                        icon: postImage
+                        //description: new showtime.RichText(postBody)
                     });
                 }
                 i = 1;
@@ -282,9 +292,9 @@
             //TODO: stopped here
             for (i; i < length; i++) {
                 if (postBodies[i].textContent) {
-                    commentText = postBodies[i].textContent + "";
+                    commentText = postBodies[i].textContent;
                     page.appendPassiveItem("video", null, {
-                        title: commentText.substr(1),
+                        title: commentText.trim(),
                         description: new showtime.RichText(postBodies[i].textContent)
                     });
                 }
@@ -327,19 +337,32 @@
         page.redirect('torrent:browse:data:application/x-bittorrent;base64,' + Duktape.enc('base64', x.bytes));
     });
 
+    //TODO: create a redirectTo method(state, stateParams) (and possibly a redirectFrom(options))
+
+    var redirectTo = function (page, state, stateParams) {
+            return page.redirect(config.prefix + ':' + state + ':' + encodeURIComponent(showtime.JSONEncode(stateParams)));
+        },
+
+        redirectFrom = function (options) {
+            return showtime.JSONDecode(decodeURIComponent(options));
+        };
+
     //Login form
-    plugin.addURI(config.prefix + ":login:(.*):(.*):(.*)", function (page, showAuth, redirectTopicId, redirectTopicTitle) {
+    plugin.addURI(config.prefix + ":login:(.*)", function (page, options) {
         //AUTH!
-        var showAuthCredentials = false,
-            credentials, v, captchaRegExp,
-            captchaImageURL, hiddenCaptchaValue, inputName;
-        if (showAuth == 'true') showAuthCredentials = true;
+        var credentials,
+            request, response,
+            captchaRegExp;
+
+        //decode options
+        options = redirectFrom(options);
+
         while (1) {
-            credentials = plugin.getAuthCredentials(plugin.getDescriptor().synopsis, "Login required", showAuthCredentials);
+            credentials = plugin.getAuthCredentials(plugin.getDescriptor().synopsis, "Login required", options.showAuth);
             if (credentials.rejected) return; //rejected by user
             if (credentials) {
                 page.loading = true;
-                v = showtime.httpReq(config.urls.login, {
+                request = {
                     postdata: {
                         'login_username': credentials.username,
                         'login_password': credentials.password,
@@ -351,28 +374,30 @@
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'Cookie': ''
                     }
-                });
+                };
+                if (options.captchaSid) {
+                    request.postdata['cap_sid'] = options.captchaSid;
+                    request.postdata[options.capCodeName] = options.captchaValue;
+                }
+                response = showtime.httpReq(config.urls.login, request);
                 page.loading = false;
-                saveUserCookie(v.headers);
+                saveUserCookie(response.headers);
                 captchaRegExp = /<div><img src="(.*?)"[.\w\W]*?<input type="hidden" name="cap_sid" value="(.*?)">[.\w\W]*?<input type="text" name="(.*?)"/g;
-                captchaRegExp = captchaRegExp.exec(v);
+                captchaRegExp = captchaRegExp.exec(response);
                 if (captchaRegExp) {
-                    captchaImageURL = captchaRegExp[1];
-                    hiddenCaptchaValue = captchaRegExp[2];
-                    inputName = captchaRegExp[3];
-                    page.redirect(config.prefix + ":captcha:" + credentials.username + ":" + encodeURIComponent(credentials.password) + ":" + encodeURIComponent(captchaImageURL) + ":" + hiddenCaptchaValue + ":" + inputName);
+                    page.redirect(config.prefix + ":captcha:" + encodeURIComponent(captchaRegExp[1]) + ":" + captchaRegExp[2] + ":" + captchaRegExp[3]);
                     break;
                 }
-                v = v.toString();
-                showAuthCredentials = v.match(/<div class="logintext">/);
-                if (!showAuthCredentials) break;
+                response = response.toString();
+                options.showAuth = response.match(/<div class="logintext">/);
+                if (!options.showAuth) break;
             }
-            showAuthCredentials = true;
+            options.showAuth = true;
         }
 
         //AUTH END
-        if (redirectTopicId !== 'null') {
-            page.redirect(config.prefix + ":topic:" + redirectTopicId + ":Производится вход");
+        if (options.topicId && options.topicId !== 'null') {
+            page.redirect(config.prefix + ":topic:" + options.topicId + ':' + options.topicTitle);
         }
         else page.redirect(config.prefix + ':start');
 
@@ -391,55 +416,46 @@
             }
         });
         page.loading = false;
-        page.redirect(config.prefix + ":login:" + showAuth + ":" + redirectTopicId + ":" + redirectTopicTitle);
+        redirectTo(page, 'login', {
+            showAuth: showAuth === 'true',
+            topicId: redirectTopicId,
+            topicTitle: redirectTopicTitle
+        });
     });
 
+    plugin.addURI(config.prefix + ":captchalogin:(.*):(.*):(.*)", function (page, image, capSid, capCodeName) {
+        var captchaValue, requestSettings;
 
-    plugin.addURI(config.prefix + ":captcha:(.*):(.*):(.*):(.*):(.*)", function (page, login, password, image, cap_sid, cap_code_name) {
-        var captchaValue, requestSettings, v, loginFail;
-        password = decodeURIComponent(password);
-        image = decodeURIComponent(image);
         setPageHeader(page, "Ввод капчи для входа");
-        page.appendItem(config.prefix + ':captchalogin', "video", {
-            title: new showtime.RichText("Введите капчу для входа"),
-            icon: image
+        page.appendItem('rutracker:start', "video", {
+            title: new showtime.RichText("Капча"),
+            icon: decodeURIComponent(image)
         });
+
         captchaValue = showtime.textDialog("Введите капчу с картинки", true);
 
         if (captchaValue && !captchaValue.rejected && captchaValue.input) {
-            //captcha OK, send the request
-            page.loading = true;
-            requestSettings = {
-                postdata: {
-                    'redirect': 'index.php',
-                    'login_username': login,
-                    'login_password': password,
-                    'cap_sid': cap_sid,
-                    'login': encodeURIComponent('Вход')
-                },
-                noFollow: true,
-                headers: {
-                    'Referer': config.urls.base,
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            };
-
-            requestSettings.postdata[cap_code_name] = captchaValue.input;
-
-            v = showtime.httpReq(config.urls.login, requestSettings);
-            page.loading = false;
-            headers = v.headers;
-            saveUserCookie(headers);
-            v = v.toString();
-            loginFail = v.match(/<h4 class="warnColor1 tCenter mrg_16">/);
-            if (!loginFail) page.redirect(config.prefix + ":start");
-            else page.redirect(config.prefix + ":login:true:null:null");
-
+            //captcha OK
+            //redirect to login with showing creditentials window
+            redirectTo(page, 'login', {
+                showAuth: true,
+                captchaSid: capSid,
+                captchaValue: captchaValue.input,
+                capCodeName: capCodeName
+            })
         }
         else {
-            page.redirect(config.prefix + ":login:true:null:null");
+            redirectTo(page, 'login', {showAuth: true});
         }
+    });
 
+
+    plugin.addURI(config.prefix + ":captcha:(.*):(.*):(.*)", function (page, image, capSid, capCodeName) {
+        setPageHeader(page, "Ввод капчи для входа");
+        page.appendItem(config.prefix + ':captchalogin:' + image + ":" + capSid + ":" + capCodeName, "video", {
+            title: new showtime.RichText("Нажмите, чтобы ввести капчу"),
+            icon: decodeURIComponent(image)
+        });
     });
 
     function saveUserCookie(headers) {
