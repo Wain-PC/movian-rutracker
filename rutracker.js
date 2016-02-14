@@ -37,6 +37,20 @@
             "User-Agent": "Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.109 Safari/537.36",
             "Accept-Encoding": "gzip, deflate, sdch",
             "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4,und;q=0.2"
+        },
+        regExps: {
+            login: /Вы зашли как:[\s\S]*?<b class="med">([\s\S]*?)<\/b>/g,
+            mainCategoryHeader: /<h3 class="cat_title"><a href=".*?">([\s\S]*?)<\/a><\/h3>([\s\S]*?)<\/table>/g,
+            mainSubforum: /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g,
+            topic: /href="viewtopic\.php\?t=([\d]{0,200}?)" class="[\s\S]*?">([\s\S]*?)<\/a>/g,
+            userCookie: /bb_data/,
+            captcha: /<div><img src="(.*?)"[.\w\W]*?<input type="hidden" name="cap_sid" value="(.*?)">[.\w\W]*?<input type="text" name="(.*?)"/g,
+            authFail: /<div class="logintext">/,
+            search: {
+                info: /<a class="small tr-dl dl-stub" href=".*?">(.*) &#8595;<\/a>[\W\w.]*?<b class="seedmed">(\d{0,10})<\/b>[\W\w.]*?title="Личи"><b>(\d{0,10})<\/b>/gm,
+                name: /<a data-topic_id="(\d{0,10})".*?href="(.*)">(.*)<\/a>/g
+            }
+
         }
     };
 
@@ -54,7 +68,13 @@
 
     config.urls = {
         base: 'http://' + service.domain + '/forum/',
-        login: 'http://login.' + service.domain + '/forum/login.php'
+        login: 'http://login.' + service.domain + '/forum/login.php',
+        parts: {
+            index: 'index.php',
+            topic: 'viewtopic.php?t=',
+            search: 'tracker.php?nm=',
+            subforum: 'viewforum.php?f='
+        }
     };
 
     function coloredStr(str, color) {
@@ -76,12 +96,10 @@
     //There's a list of all forums and subforums being shown
     plugin.addURI(config.prefix + ":start", function (page) {
         var doc,
-            reLogin,
-            loginState,
-            re, mainSubforum, re2, forumItem, forumTitle;
+            loginState, mainSubforum, forumItem, forumTitle;
         setPageHeader(page, config.pluginInfo.synopsis);
         page.loading = true;
-        doc = showtime.httpReq(config.urls.base + 'index.php', {
+        doc = showtime.httpReq(config.urls.base + config.urls.parts.index, {
             headers: config.headers,
             debug: true
 
@@ -90,15 +108,14 @@
         page.loading = false;
 
         //check for LOGIN state
-        reLogin = /Вы зашли как:[\s\S]*?<b class="med">([\s\S]*?)<\/b>/g;
-        loginState = reLogin.exec(doc);
+        loginState = config.regExps.login.exec(doc);
         if (!loginState) {
             redirectTo(page, 'login', {showAuth: false});
             return;
         }
         else {
             saveUserCookie(doc.headers);
-            if (!(service.userCookie.match(/bb_data/))) {
+            if (!(service.userCookie.match(config.regExps.userCookie))) {
                 page.redirect(config.prefix + ":logout:false:null:null");
             }
 
@@ -110,37 +127,33 @@
         }
 
 
-        re = /<h3 class="cat_title"><a href=".*?">([\s\S]*?)<\/a><\/h3>([\s\S]*?)<\/table>/g;
         //1-title, 2- HTML contents
-        mainSubforum = re.exec(doc);
-        re2 = /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g;
+        mainSubforum = config.regExps.mainCategoryHeader.exec(doc);
         while (mainSubforum) {
             page.appendItem("", "separator", {
                 title: mainSubforum[1]
             });
             // 1-forumId, 2 - title
-            forumItem = re2.exec(mainSubforum[2]);
+            forumItem = config.regExps.mainSubforum.exec(mainSubforum[2]);
             while (forumItem) {
                 forumTitle = forumItem[2];
                 page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + encodeURIComponent(forumTitle), "directory", {
                     title: new showtime.RichText(forumTitle)
                 });
-                forumItem = re2.exec(mainSubforum[2]);
+                forumItem = config.regExps.mainSubforum.exec(mainSubforum[2]);
             }
 
-            mainSubforum = re.exec(doc);
+            mainSubforum = config.regExps.mainCategoryHeader.exec(doc);
         }
     });
 
     //Subforums page. This may contain a list of nested subforums and a list of topics
     plugin.addURI(config.prefix + ":forum:(.*):(.*):(.*)", function (page, forumId, forumPage, forumTitle) {
-        var reSubforum = /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g,
-            reTopic = /href="viewtopic\.php\?t=([\d]{0,200}?)" class="[\s\S]*?">([\s\S]*?)<\/a>/g,
-            forumItem,
+        var forumItem,
             topicItem,
             topicTitle,
             tryToSearch = true,
-            url = config.urls.base + 'viewforum.php?f=' + forumId,
+            url = config.urls.base + config.urls.parts.subforum + forumId,
             pageNum = 0;
 
         subforumLoader();
@@ -155,16 +168,16 @@
             }
             page.loading = true;
             response = showtime.httpReq(url, {
-                headers: config.headers,
-                debug: true
-            }
+                    headers: config.headers,
+                    debug: true
+                }
             ).convertFromEncoding('windows-1251').toString();
             dom = html.parse(response);
             page.loading = false;
             pageNum++;
 
             //searching for SUBFORUMS
-            forumItem = reSubforum.exec(response);
+            forumItem = config.regExps.mainSubforum.exec(response);
             if (forumItem && pageNum === 1) {
                 page.appendItem("", "separator", {
                     title: "Форумы"
@@ -176,14 +189,14 @@
                 page.appendItem(config.prefix + ":forum:" + forumItem[1] + ':0:' + encodeURIComponent(forumTitle), "directory", {
                     title: new showtime.RichText(forumTitle)
                 });
-                forumItem = reSubforum.exec(response);
+                forumItem = config.regExps.mainSubforum.exec(response);
             }
 
             //SUBFORUMS ended, add separator
 
             //searching for TOPICS.
             //1-topicId, 2-topicTitle
-            topicItem = reTopic.exec(response);
+            topicItem = config.regExps.topic.exec(response);
             if (topicItem && pageNum === 1) {
                 page.appendItem("", "separator", {
                     title: "Темы"
@@ -198,7 +211,7 @@
                         title: new showtime.RichText(topicTitle)
                     });
                 }
-                topicItem = reTopic.exec(response);
+                topicItem = config.regExps.topic.exec(response);
             }
 
             //try to get the link to the next page
@@ -230,7 +243,7 @@
             html = require('showtime/html'),
             pageNum = 0,
             tryToSearch = true,
-            url = config.urls.base + 'viewtopic.php?t=' + topicId;
+            url = config.urls.base + config.urls.parts.topic + topicId;
         setPageHeader(page, decodeURIComponent(topicTitle));
         topicLoader();
         page.paginator = topicLoader;
@@ -305,7 +318,7 @@
             }
             page.loading = true;
             //проверяем куки, если нет, то нужно перелогиниться или залогиниться, используя сохраненные данные
-            if (!(service.userCookie.match(/bb_data/))) {
+            if (!(service.userCookie.match(config.regExps.userCookie))) {
                 page.redirect(config.prefix + ":logout:false:" + topicId + ":" + topicTitle);
                 return false;
             }
@@ -397,7 +410,7 @@
         //AUTH!
         var credentials,
             request, response,
-            captchaRegExp;
+            captchaResult;
 
         //decode options
         options = redirectFrom(options);
@@ -427,14 +440,13 @@
                 response = showtime.httpReq(config.urls.login, request);
                 page.loading = false;
                 saveUserCookie(response.headers);
-                captchaRegExp = /<div><img src="(.*?)"[.\w\W]*?<input type="hidden" name="cap_sid" value="(.*?)">[.\w\W]*?<input type="text" name="(.*?)"/g;
-                captchaRegExp = captchaRegExp.exec(response);
-                if (captchaRegExp) {
-                    page.redirect(config.prefix + ":captcha:" + encodeURIComponent(captchaRegExp[1]) + ":" + captchaRegExp[2] + ":" + captchaRegExp[3]);
+                captchaResult = config.regExps.captcha.exec(response);
+                if (captchaResult) {
+                    page.redirect(config.prefix + ":captcha:" + encodeURIComponent(captchaResult[1]) + ":" + captchaResult[2] + ":" + captchaResult[3]);
                     break;
                 }
                 response = response.toString();
-                options.showAuth = response.match(/<div class="logintext">/);
+                options.showAuth = response.match(config.regExps.authFail);
                 if (!options.showAuth) break;
             }
             options.showAuth = true;
@@ -457,7 +469,7 @@
             noFollow: true,
             debug: true,
             headers: {
-                'Referer': config.urls.base + 'index.php',
+                'Referer': config.urls.base + config.urls.parts.index,
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
         });
@@ -533,19 +545,15 @@
             });
             saveUserCookie(response.headers);
             response = response.toString();
-            result = response.match(/<div class="logintext">/);
+            result = response.match(config.regExps.authFail);
             return !result;
         }
     }
 
 
     plugin.addSearcher(plugin.getDescriptor().id, config.logo, function (page, query) {
-        var url = config.urls.base + "tracker.php?nm=" + encodeURIComponent(query),
-            nextURL, tryToSearch = true,
-        //1-размер, 2-сидеры, 3-личеры
-            infoRe = /<a class="small tr-dl dl-stub" href=".*?">(.*) &#8595;<\/a>[\W\w.]*?<b class="seedmed">(\d{0,10})<\/b>[\W\w.]*?title="Личи"><b>(\d{0,10})<\/b>/gm,
-        //1-номер темы, 2-относительная ссылка на тему, 3-название
-            nameRe = /<a data-topic_id="(\d{0,10})".*?href="(.*)">(.*)<\/a>/g;
+        var url = config.urls.base + config.urls.parts.search + encodeURIComponent(query),
+            nextURL, tryToSearch = true;
 
         page.entries = 0;
         loader();
@@ -565,7 +573,7 @@
             dom = html.parse(response);
             page.loading = false;
             //perform background login if login form has been found on the page
-            if (response.match(/<div class="logintext">/)) {
+            if (response.match(config.regExps.authFail)) {
                 if (!performLogin()) {
                     //do not perform the search if the background login has failed
                     return tryToSearch = false;
@@ -611,8 +619,10 @@
                     seeders: "0",
                     leechers: "0"
                 },
-                nameMatch = nameRe.exec(response),
-                infoMatch = infoRe.exec(response);
+            //1-номер темы, 2-относительная ссылка на тему, 3-название
+                nameMatch = config.regExps.search.name.exec(response),
+            //1-размер, 2-сидеры, 3-личеры
+                infoMatch = config.regExps.search.info.exec(response);
 
             if (nameMatch) {
                 result.title = nameMatch[3];
