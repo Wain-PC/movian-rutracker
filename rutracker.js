@@ -291,7 +291,7 @@
                 }
                 else {
                     type = 'magnet';
-                    redirectState = 'torrent:video:' + decodeURIComponent(link);
+                    redirectState = 'torrent:browse:' + decodeURIComponent(link);
                 }
 
                 page.appendItem(redirectState, "video", {
