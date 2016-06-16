@@ -58,7 +58,7 @@
     var settings = plugin.createSettings(config.pluginInfo.title, config.logo, config.pluginInfo.synopsis);
     settings.createInfo("info", config.logo, "Plugin developed by " + config.pluginInfo.author + ". \n");
     settings.createDivider('Settings');
-    settings.createString("domain", "Домен", "rutracker.org", function (v) {
+    settings.createString("domain", "Домен", "rutracker.cr", function (v) {
         service.domain = v;
     });
 
