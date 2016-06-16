@@ -44,7 +44,7 @@
             mainSubforum: /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g,
             topic: /href="viewtopic\.php\?t=([\d]{0,200}?)" class="[\s\S]*?">([\s\S]*?)<\/a>/g,
             userCookie: /bb_data/,
-            captcha: /<div><img src="(.*?)"[.\w\W]*?<input type="hidden" name="cap_sid" value="(.*?)">[.\w\W]*?<input type="text" name="(.*?)"/g,
+            captcha: /<div><img src="\/\/(.*?)"[.\w\W]*?<input type="hidden" name="cap_sid" value="(.*?)">[.\w\W]*?<input type="text" name="(.*?)"/g,
             authFail: /<div class="logintext">/,
             search: {
                 info: /<a class="small tr-dl dl-stub" href=".*?">(.*) &#8595;<\/a>[\W\w.]*?<b class="seedmed">(\d{0,10})<\/b>[\W\w.]*?title="Личи"><b>(\d{0,10})<\/b>/gm,
@@ -487,7 +487,7 @@
         setPageHeader(page, "Ввод капчи для входа");
         page.appendItem('rutracker:start', "video", {
             title: new showtime.RichText("Капча"),
-            icon: decodeURIComponent(image)
+            icon: 'http://'+decodeURIComponent(image)
         });
 
         captchaValue = showtime.textDialog("Введите капчу с картинки", true);
@@ -512,7 +512,7 @@
         setPageHeader(page, "Ввод капчи для входа");
         page.appendItem(config.prefix + ':captchalogin:' + image + ":" + capSid + ":" + capCodeName, "video", {
             title: new showtime.RichText("Нажмите, чтобы ввести капчу"),
-            icon: decodeURIComponent(image)
+            icon: 'http://'+decodeURIComponent(image)
         });
     });
 
