@@ -386,6 +386,10 @@
         var http = require('showtime/http'), x;
         dlHref = decodeURIComponent(dlHref);
 
+        if(!~dlHref.indexOf(config.urls.base)) {
+            dlHref = config.urls.base + dlHref;
+        }
+
         x = http.request(dlHref, {
             args: {
                 dummy: ""
