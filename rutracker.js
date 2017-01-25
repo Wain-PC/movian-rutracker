@@ -43,7 +43,7 @@
             mainCategoryHeader: /<h3 class="cat_title"><a href=".*?">([\s\S]*?)<\/a><\/h3>([\s\S]*?)<\/table>/g,
             mainSubforum: /<h4 class="forumlink"><a href="viewforum\.php\?f=([\s\S]{0,200}?)">([\s\S]*?)<\/a><\/h4>/g,
             topic: /href="viewtopic\.php\?t=([\d]{0,200}?)" class="[\s\S]*?">([\s\S]*?)<\/a>/g,
-            userCookie: /bb_data/,
+            userCookie: /bb_session/,
             captcha: /<div><img src="\/\/(.*?)"[.\w\W]*?<input type="hidden" name="cap_sid" value="(.*?)">[.\w\W]*?<input type="text" name="(.*?)"/g,
             authFail: /<div class="logintext">/,
             search: {
@@ -68,7 +68,7 @@
 
     config.urls = {
         base: 'http://' + service.domain + '/forum/',
-        login: 'http://login.' + service.domain + '/forum/login.php',
+        login: 'http://' + service.domain + '/forum/login.php',
         parts: {
             index: 'index.php',
             topic: 'viewtopic.php?t=',
