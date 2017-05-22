@@ -310,7 +310,7 @@
         }
 
         function topicLoader() {
-            var dom, nextURL, textContent,
+            var dom, nextURL, textContent, firstPost,
                 postBodies, i, length, commentText,
                 html = require('showtime/html');
             if (!tryToSearch) {
@@ -331,6 +331,7 @@
             pageNum++;
 
             postBodies = dom.root.getElementByClassName('post_body');
+            firstPost = dom.root.getElementByClassName('post_wrap')[0];
 
             //if we're on the first page, first post must be parsed separately
             if (pageNum === 1) {
@@ -338,8 +339,8 @@
                     title: "Ссылки"
                 });
 
-                getLink('torrent', postBodies[0]);
-                getLink('magnet', postBodies[0]);
+                getLink('torrent', firstPost);
+                getLink('magnet', firstPost);
 
                 i = 1;
                 page.appendItem("", "separator", {
@@ -588,7 +589,7 @@
             //проходимся по найденным темам
             while (match && match.title !== "") {
                 page.appendItem(config.prefix + ":topic:" + match.topicId + ":" + encodeURIComponent(match.title), "video", {
-                    title: new showtime.RichText(match.title),
+                    title: match.titleExtended,
                     description: match.description
                 });
                 page.entries++;
@@ -623,9 +624,9 @@
                     seeders: "0",
                     leechers: "0"
                 },
-            //1-номер темы, 2-относительная ссылка на тему, 3-название
+                //1-номер темы, 2-относительная ссылка на тему, 3-название
                 nameMatch = config.regExps.search.name.exec(response),
-            //1-размер, 2-сидеры, 3-личеры
+                //1-размер, 2-сидеры, 3-личеры
                 infoMatch = config.regExps.search.info.exec(response);
 
             if (nameMatch) {
@@ -644,6 +645,13 @@
             result.description += coloredStr('Сидеры: ', config.colors.green) + result.seeders + "<br>";
             result.description += coloredStr('Личеры: ', config.colors.red) + result.leechers + "<br>";
             result.description = new showtime.RichText(result.description);
+
+            result.titleExtended = '';
+            result.titleExtended += coloredStr(result.size, config.colors.blue) + " (";
+            result.titleExtended += coloredStr(result.seeders, config.colors.green) + "/";
+            result.titleExtended += coloredStr(result.leechers, config.colors.red)  + ")";
+            result.titleExtended += result.title;
+            result.titleExtended = new showtime.RichText(result.titleExtended);
             return result;
         }
 
