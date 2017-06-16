@@ -156,15 +156,15 @@
             url = config.urls.base + config.urls.parts.subforum + forumId,
             pageNum = 0;
 
+			  setPageHeader(page, decodeURIComponent(forumTitle));
         subforumLoader();
-        setPageHeader(page, decodeURIComponent(forumTitle));
-        page.paginator = subforumLoader;
+        page.asyncPaginator = subforumLoader;
 
         function subforumLoader() {
             var response, dom, nextURL, textContent,
                 html = require('showtime/html');
             if (!tryToSearch) {
-                return tryToSearch = false;
+							  return page.haveMore(false);
             }
             page.loading = true;
             response = showtime.httpReq(url, {
@@ -223,15 +223,15 @@
                 nextURL = nextURL.attributes.getNamedItem('href').value;
 
                 if (!nextURL || textContent !== "След.") {
-                    return tryToSearch = false;
+									  return page.haveMore(false);
                 }
                 else {
                     url = config.urls.base + nextURL;
-                    return true;
+									  return page.haveMore(true);
                 }
             }
             catch (err) {
-                return tryToSearch = false;
+							  return page.haveMore(false);
             }
         }
     });
@@ -246,7 +246,7 @@
             url = config.urls.base + config.urls.parts.topic + topicId;
         setPageHeader(page, decodeURIComponent(topicTitle));
         topicLoader();
-        page.paginator = topicLoader;
+        page.asyncPaginator = topicLoader;
 
         function getLink(type, postBody) {
             var link = '', className,
@@ -314,13 +314,13 @@
                 postBodies, i, length, commentText,
                 html = require('showtime/html');
             if (!tryToSearch) {
-                return false;
+							  return page.haveMore(false);
             }
             page.loading = true;
             //проверяем куки, если нет, то нужно перелогиниться или залогиниться, используя сохраненные данные
             if (!(service.userCookie.match(config.regExps.userCookie))) {
                 page.redirect(config.prefix + ":logout:false:" + topicId + ":" + topicTitle);
-                return false;
+							  return page.haveMore(false);
             }
 
             doc = showtime.httpReq(url, {
@@ -369,15 +369,15 @@
                 nextURL = nextURL.attributes.getNamedItem('href').value;
 
                 if (!nextURL || textContent !== "След.") {
-                    return tryToSearch = false;
+									return page.haveMore(false);
                 }
                 else {
                     url = config.urls.base + nextURL;
-                    return true;
+									return page.haveMore(true);
                 }
             }
             catch (err) {
-                return tryToSearch = false;
+							  return page.haveMore(false);
             }
         }
 
@@ -562,14 +562,14 @@
 
         page.entries = 0;
         loader();
-        page.paginator = loader;
+        page.asyncPaginator = loader;
 
         //this is NOT working yet as intended (seems like finding the next page is broken)
         function loader() {
             var response, match, dom, textContent,
                 html = require('showtime/html');
             if (!tryToSearch) {
-                return false;
+							return page.haveMore(false);
             }
             page.loading = true;
             response = showtime.httpReq(url, {
@@ -581,7 +581,7 @@
             if (response.match(config.regExps.authFail)) {
                 if (!performLogin()) {
                     //do not perform the search if the background login has failed
-                    return tryToSearch = false;
+									return page.haveMore(false);
                 }
             }
 
@@ -602,15 +602,15 @@
                 nextURL = nextURL.attributes.getNamedItem('href').value;
 
                 if (!nextURL || textContent !== "След.") {
-                    return tryToSearch = false;
+									return page.haveMore(false);
                 }
                 else {
                     url = config.urls.base + nextURL;
-                    return true;
+									return page.haveMore(true);
                 }
             }
             catch (err) {
-                return tryToSearch = false;
+							return page.haveMore(true);
             }
         }
 
